@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 旅行攻略生成器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 40px 16px;
+    color: #333;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    padding: 40px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: #444;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+
+  .form-group { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #444;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input:focus { border-color: #667eea; }
+
+  .date-row { display: flex; align-items: center; gap: 8px; }
+  .date-row input[type="date"] { flex: 1; }
+  .date-sep { color: #888; }
+
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .mode-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #f5f5fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0;
+  }
+  .mode-option:has(input:checked) {
+    background: #eef0ff;
+    border-color: #667eea;
+    color: #5558d6;
+  }
+  .mode-option input { accent-color: #667eea; }
+
+  .days-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 6px;
+    min-height: 16px;
+  }
+
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f5f5fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 999px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    font-size: 14px;
+  }
+
+  .checkbox-item input { accent-color: #667eea; }
+
+  .checkbox-item:has(input:checked) {
+    background: #eef0ff;
+    border-color: #667eea;
+    color: #5558d6;
+  }
+
+  button {
+    width: 100%;
+    padding: 15px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-top: 8px;
+  }
+
+  button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.45);
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .result {
+    margin-top: 36px;
+    border-top: 2px dashed #e0e0e0;
+    padding-top: 24px;
+  }
+
+  .result h2 { font-size: 20px; margin-bottom: 16px; color: #444; }
+
+  .result-content {
+    background: #fafaff;
+    border-radius: 12px;
+    padding: 20px;
+    white-space: pre-wrap;
+    line-height: 1.8;
+    font-size: 15px;
+    min-height: 60px;
+  }
+
+  .loading { color: #888; font-style: italic; }
+
+  .error { color: #d33; }
+
+  /* Markdown 渲染样式 */
+  .markdown h1, .markdown h2, .markdown h3 {
+    margin: 18px 0 10px;
+    line-height: 1.3;
+  }
+  .markdown h1 { font-size: 22px; border-bottom: 2px solid #667eea; padding-bottom: 6px; }
+  .markdown h2 { font-size: 19px; color: #5558d6; }
+  .markdown h3 { font-size: 17px; color: #444; }
+  .markdown p { margin: 8px 0; }
+  .markdown ul, .markdown ol { margin: 8px 0 8px 20px; }
+  .markdown li { margin: 4px 0; }
+  .markdown strong { color: #333; }
+  .markdown hr { border: 0; border-top: 1px dashed #ddd; margin: 16px 0; }
+  .markdown table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 14px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .markdown th, .markdown td {
+    border: 1px solid #e5e7eb;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .markdown th { background: #eef0ff; color: #5558d6; font-weight: 700; }
+  .markdown tr:nth-child(even) td { background: #fafaff; }
+
+  /* 行程路线地图 */
+  .route-map-box {
+    margin-top: 24px;
+    background: #fafaff;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .route-map-box h3 {
+    font-size: 17px;
+    color: #5558d6;
+    margin-bottom: 10px;
+  }
+  #routeMap {
+    width: 100%;
+    height: 380px;
+    border-radius: 10px;
+    z-index: 0;
+  }
+  .route-map-note {
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+  }
+
+  /* 目的地图片 Hero */
+  .hero {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    background: linear-gradient(135deg, #eef0ff, #fafaff);
+    padding: 14px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+  }
+  .hero img {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .hero-meta { flex: 1; min-width: 0; }
+  .hero-meta h3 { font-size: 18px; margin-bottom: 6px; color: #5558d6; }
+  .hero-meta p { font-size: 13px; color: #555; line-height: 1.7; margin: 0; }
+  @media (max-width: 480px) {
+    .hero { flex-direction: column; }
+    .hero img { width: 100%; height: 180px; }
+  }
+</style>
+</head>
+<body>
+  <!-- 引入 Markdown 解析库（marked.js）与地图库（Leaflet） -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <div class="container">
+    <h1>AI 旅行攻略生成器</h1>
+    <p class="subtitle">填写旅行信息，一键生成专属攻略</p>
+
+    <form id="travelForm">
+      <div class="form-group">
+        <label for="tripScope">出行范围</label>
+        <select id="tripScope">
+          <option value="domestic" selected>🇨🇳 国内旅游</option>
+          <option value="international">🌏 国际旅游</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="currencyGroup" style="display:none">
+        <label for="currency">目的地货币代码</label>
+        <input type="text" id="currency" placeholder="例如：JPY / USD / EUR" />
+      </div>
+
+      <div class="form-group">
+        <label for="origin">出发地</label>
+        <input type="text" id="origin" placeholder="例如：北京" required />
+      </div>
+
+      <div class="form-group">
+        <label for="destination">目的地</label>
+        <input type="text" id="destination" placeholder="例如：成都" required />
+      </div>
+
+      <div class="form-group">
+        <label>行程时长</label>
+        <div class="mode-toggle">
+          <label class="mode-option">
+            <input type="radio" name="durationMode" value="date" checked />
+            <span>按日期选择</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="durationMode" value="days" />
+            <span>直接填天数</span>
+          </label>
+        </div>
+
+        <div class="date-row" id="dateModeBox">
+          <input type="date" id="startDate" />
+          <span class="date-sep">至</span>
+          <input type="date" id="endDate" />
+        </div>
+
+        <input type="number" id="days" min="1" placeholder="例如：5" style="display:none" />
+
+        <p class="days-hint" id="daysHint">选择出发和返程日期，将自动计算游玩天数</p>
+      </div>
+
+      <div class="form-group">
+        <label for="budget">预算（人民币元）</label>
+        <input type="number" id="budget" min="0" placeholder="例如：5000" required />
+        <p class="days-hint" id="currencyHint"></p>
+      </div>
+
+      <div class="form-group">
+        <label>偏好（可多选）</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="美食探店" />美食探店</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="文艺复古" />文艺复古</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="自然风光" />自然风光</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="亲子游" />亲子游</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="历史文化" />历史文化</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="网红打卡" />网红打卡</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>优先关注（可多选，至少选 1 项）</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="住宿环境" />住宿环境</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="美食体验" />美食体验</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="景点深度" />景点深度</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="交通便利" />交通便利</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="购物娱乐" />购物娱乐</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="夜生活" />夜生活</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="轻松慢节奏" />轻松慢节奏</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="高性价比" />性价比优先</label>
+        </div>
+      </div>
+
+      <button type="submit" id="generateBtn">生成攻略</button>
+    </form>
+
+    <div class="result">
+      <h2>AI 生成的攻略</h2>
+      <div class="result-content" id="resultContent">攻略将在这里显示。</div>
+    </div>
+  </div>
+
+<script src="config.js"></script>
+<script>
+  // ===== 密钥与运行模式 =====
+  // 本地双击运行：读取同目录 config.js 中的密钥（该文件不提交 GitHub）
+  // 线上部署：走 /api/* 函数代理，密钥在 Netlify 环境变量中，页面无需任何密钥
+  const IS_LOCAL_FILE = location.protocol === "file:";
+  // ★★★ 部署到 GitHub Pages 时，只需修改这一行 ★★★
+  // 把下面替换成你的 Cloudflare Worker 地址（末尾不要带斜杠），例如：
+  //   const API_PROXY_BASE = "https://你的Worker名.你的子域.workers.dev";
+  // 留空 "" = 使用同源 /api/* 接口（Netlify Functions 部署方式）
+  const API_PROXY_BASE = "https://travelai2.2178210843.workers.dev/".replace(/\/+$/, "");
+  const CFG = window.TRAVEL_CONFIG || {};
+  const API_KEY = CFG.DEEPSEEK_API_KEY || "YOUR_API_KEY";
+  const AMAP_KEY = CFG.AMAP_KEY || "YOUR_AMAP_KEY";
+  const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
+  const GENERATE_ENDPOINT = IS_LOCAL_FILE ? DEEPSEEK_URL : API_PROXY_BASE + "/api/generate";
+
+  const form = document.getElementById("travelForm");
+  const btn = document.getElementById("generateBtn");
+  const resultContent = document.getElementById("resultContent");
+  const startDateEl = document.getElementById("startDate");
+  const endDateEl = document.getElementById("endDate");
+  const daysHint = document.getElementById("daysHint");
+  const tripScopeEl = document.getElementById("tripScope");
+  const currencyGroup = document.getElementById("currencyGroup");
+  const currencyHint = document.getElementById("currencyHint");
+
+  // ============ 行程路线地图 ============
+  let routeMapInstance = null;
+
+  // 地理编码：把地名转成经纬度（Nominatim 主源 + Photon 备用源，均免 Key）
+  async function fetchJsonWithTimeout(url, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      const resp = await fetch(url, {
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch (_) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function geocode(placeName, destName) {
+    // 最优先：高德地图（国内，需申请免费 Web服务 Key）
+    // 申请地址：https://console.amap.com/dev/key/app 创建「Web服务」类型 Key
+    if (typeof AMAP_KEY === "string" && AMAP_KEY && AMAP_KEY !== "YOUR_AMAP_KEY" &&
+        document.getElementById("tripScope").value === "domestic") {
+      const amap = await fetchJsonWithTimeout(
+        "https://restapi.amap.com/v3/place/text?keywords=" + encodeURIComponent(placeName) +
+        "&city=" + encodeURIComponent(destName) + "&citylimit=false&offset=1&page=1&key=" + AMAP_KEY,
+        8000);
+      if (amap && amap.pois && amap.pois.length && amap.pois[0].location) {
+        const [lng, lat] = amap.pois[0].location.split(",").map(Number);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          return { lat, lon: lng, source: "amap" };
+        }
+      }
+    }
+
+    // 次选：OpenStreetMap Nominatim（国内时拼接城市名提高准确率）
+    const q = document.getElementById("tripScope").value === "domestic"
+      ? placeName + ", " + destName : placeName;
+    const nominatim = await fetchJsonWithTimeout(
+      "https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-CN&q=" +
+      encodeURIComponent(q), 8000);
+    if (nominatim && nominatim.length) {
+      return { lat: parseFloat(nominatim[0].lat), lon: parseFloat(nominatim[0].lon), source: "nominatim" };
+    }
+
+    // 备用源：Photon（komoot），国际目的地主要靠它
+    const photon = await fetchJsonWithTimeout(
+      "https://photon.komoot.io/api/?limit=1&lang=default&q=" +
+      encodeURIComponent(q), 8000);
+    if (photon && photon.features && photon.features.length) {
+      const c = photon.features[0].geometry.coordinates;
+      return { lat: c[1], lon: c[0], source: "photon" };
+    }
+
+    console.warn("[路线图] 地理编码失败：" + placeName);
+    return null;
+  }
+
+  async function renderRouteMap(routeLines, destName) {
+    // 解析格式：ROUTE_DATA: Day1|景点A,景点B,景点C
+    const dayPlans = [];
+    routeLines.forEach(line => {
+      const m = line.split(/:(.+)/)[1] || "";
+      const [dayPart, spotsPart] = m.split("|");
+      const dayLabel = (dayPart || "").trim();
+      const spots = (spotsPart || "").split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      if (dayLabel && spots.length) dayPlans.push({ dayLabel, spots });
+    });
+    if (!dayPlans.length) {
+      console.warn("[路线图] AI 未返回有效的 ROUTE_DATA 行，跳过地图生成");
+      return;
+    }
+    console.log("[路线图] 解析到 " + dayPlans.length + " 天行程，开始地理编码…");
+
+    // 先做地理编码，全部定位失败则不显示任何地图相关内容
+    const points = []; // {dayLabel, name, lat, lon, source}
+
+    if (IS_LOCAL_FILE) {
+      // 本地：逐点直连（高德/Nominatim/Photon）
+      for (const plan of dayPlans) {
+        for (const spot of plan.spots) {
+          let geo = null;
+          try {
+            geo = await geocode(spot, destName);
+            if (geo) {
+              points.push({ dayLabel: plan.dayLabel, name: spot, ...geo });
+              console.log("[路线图] 定位成功：" + spot + " → " + geo.lat + "," + geo.lon + "（" + geo.source + "）");
+            }
+          } catch (_) { /* 忽略单个失败点 */ }
+          // 限流：高德允许较高 QPS 用短间隔；开源服务需 1 次/秒
+          await new Promise(r => setTimeout(r, geo && geo.source === "amap" ? 150 : 1200));
+        }
+      }
+    } else {
+      // 线上：一次性批量请求 /api/geocode（经 API_PROXY_BASE 代理，密钥在服务端，无暴露风险）
+      try {
+        const resp = await fetch(API_PROXY_BASE + "/api/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            days: dayPlans,
+            scope: document.getElementById("tripScope").value,
+            dest: destName
+          })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data.points)) points.push(...data.points);
+        }
+      } catch (_) { /* 失败则不显示地图 */ }
+      console.log("[路线图] 批量定位完成：" + points.length + " 个地点");
+    }
+
+    console.log("[路线图] 定位成功 " + points.length + "/" + dayPlans.reduce((n, p) => n + p.spots.length, 0) + " 个地点");
+    if (points.length < 2) {
+      console.warn("[路线图] 有效定位点不足 2 个，按约定不显示地图");
+      return;
+    }
+
+    // 定位成功后才创建地图容器
+    const box = document.createElement("div");
+    box.className = "route-map-box";
+    const title = document.createElement("h3");
+    title.textContent = "🗺️ 行程路线地图";
+    const mapDiv = document.createElement("div");
+    mapDiv.id = "routeMap";
+    const note = document.createElement("p");
+    note.className = "route-map-note";
+    note.textContent = "圆点按游览顺序编号，连线为建议路线；位置为近似定位，仅供参考。";
+    box.appendChild(title);
+    box.appendChild(mapDiv);
+    box.appendChild(note);
+    resultContent.appendChild(box);
+
+    // 初始化 Leaflet 地图；底图根据坐标来源自动匹配
+    // （高德坐标为 GCJ-02，必须配高德瓦片，否则点位会偏移数百米）
+    if (routeMapInstance) { routeMapInstance.remove(); routeMapInstance = null; }
+    routeMapInstance = L.map(mapDiv).setView([points[0].lat, points[0].lon], 12);
+
+    const amapCount = points.filter(p => p.source === "amap").length;
+    if (amapCount > points.length / 2) {
+      // 高德底图（GCJ-02，国内显示正常且中文标注）
+      L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
+        subdomains: ["1", "2", "3", "4"],
+        attribution: '&copy; <a href="https://www.amap.com/">高德地图</a>',
+        maxZoom: 18
+      }).addTo(routeMapInstance);
+    } else {
+      // OpenStreetMap 底图（WGS-84）
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
+      }).addTo(routeMapInstance);
+    }
+
+    // 按顺序添加编号标记 + 路线连线
+    const latlngs = [];
+    const dayColors = ["#667eea", "#e67e22", "#27ae60", "#c0392b", "#8e44ad", "#16a085", "#d35400", "#2c3e50"];
+    let lastDay = null, colorIdx = -1;
+    points.forEach((p, i) => {
+      if (p.dayLabel !== lastDay) { colorIdx++; lastDay = p.dayLabel; }
+      const color = dayColors[colorIdx % dayColors.length];
+      L.circleMarker([p.lat, p.lon], {
+        radius: 9, color: "#fff", weight: 2, fillColor: color, fillOpacity: 0.95
+      }).addTo(routeMapInstance)
+        .bindPopup("<b>" + p.dayLabel + "</b><br>" + (i + 1) + ". " + p.name);
+      latlngs.push([p.lat, p.lon]);
+    });
+
+    if (latlngs.length > 1) {
+      L.polyline(latlngs, { color: "#667eea", weight: 3, opacity: 0.7, dashArray: "8, 6" })
+        .addTo(routeMapInstance);
+    }
+
+    routeMapInstance.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+  }
+
+  // ============ 表单提交 ============
+  function updateDaysHint() {
+    if (startDateEl.value && endDateEl.value) {
+      const d = Math.round((new Date(endDateEl.value) - new Date(startDateEl.value)) / 86400000);
+      daysHint.textContent = d >= 1
+        ? "共 " + d + " 天行程"
+        : "⚠️ 返程日期需晚于出发日期";
+    } else {
+      daysHint.textContent = "选择出发和返程日期，将自动计算游玩天数";
+    }
+  }
+  startDateEl.addEventListener("change", updateDaysHint);
+  endDateEl.addEventListener("change", updateDaysHint);
+
+  // 切换「按日期」/「按天数」两种模式
+  const daysInput = document.getElementById("days");
+  const dateModeBox = document.getElementById("dateModeBox");
+  function getDurationMode() {
+    const checked = document.querySelector('input[name="durationMode"]:checked');
+    return checked ? checked.value : "date";
+  }
+  function applyDurationMode() {
+    const mode = getDurationMode();
+    dateModeBox.style.display = mode === "date" ? "flex" : "none";
+    daysInput.style.display = mode === "days" ? "" : "none";
+    if (mode === "days") {
+      daysHint.textContent = "填写计划游玩的天数";
+    } else {
+      updateDaysHint();
+    }
+  }
+  document.querySelectorAll('input[name="durationMode"]').forEach(radio => {
+    radio.addEventListener("change", applyDurationMode);
+  });
+
+  // 切换国内/国际，显示货币输入框
+  tripScopeEl.addEventListener("change", function () {
+    currencyGroup.style.display = this.value === "international" ? "" : "none";
+    currencyHint.textContent = "";
+  });
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    if (IS_LOCAL_FILE && (!API_KEY || API_KEY === "YOUR_API_KEY")) {
+      resultContent.className = "result-content error";
+      resultContent.textContent = "本地使用请先在 config.js 中配置 DEEPSEEK_API_KEY。";
+      return;
+    }
+
+    const destination = document.getElementById("destination").value.trim();
+    const origin = document.getElementById("origin").value.trim();
+    const tripScope = tripScopeEl.value;
+    const budget = document.getElementById("budget").value.trim();
+
+    // 按模式读取行程时长
+    let days, dateInfoText;
+    if (getDurationMode() === "date") {
+      const startDate = startDateEl.value;
+      const endDate = endDateEl.value;
+      if (!startDate || !endDate) {
+        alert("请选择出发和返程日期，或切换为「直接填天数」模式");
+        return;
+      }
+      days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000);
+      if (days < 1) {
+        alert("返程日期必须晚于出发日期");
+        return;
+      }
+      dateInfoText = startDate + " 至 " + endDate + "（共 " + days + " 天）";
+    } else {
+      days = parseInt(daysInput.value, 10);
+      if (!days || days < 1) {
+        alert("请填写有效的游玩天数");
+        return;
+      }
+      dateInfoText = "共 " + days + " 天（用户未指定具体日期，可按常规季节建议）";
+    }
+    const preferences = Array.from(
+      document.querySelectorAll('input[name="preference"]:checked')
+    ).map(cb => cb.value);
+    const priorities = Array.from(
+      document.querySelectorAll('input[name="priority"]:checked')
+    ).map(cb => cb.value);
+
+    if (priorities.length === 0) {
+      alert("请至少选择一项「优先关注」");
+      btn.disabled = false;
+      btn.textContent = "生成攻略";
+      return;
+    }
+
+    const prefText = preferences.length ? preferences.join("、") : "无特别偏好";
+    const priorityText = priorities.join("、");
+
+    // 国际旅游：实时汇率换算（免 Key 公开接口 open.er-api.com）
+    let localBudgetText = "";
+    if (tripScope === "international") {
+      const currency = document.getElementById("currency").value.trim().toUpperCase();
+      if (!currency) {
+        alert("国际旅游请填写目的地货币代码（如 JPY / USD / EUR）");
+        return;
+      }
+      try {
+        const rateResp = await fetch("https://open.er-api.com/v6/latest/CNY");
+        const rateData = await rateResp.json();
+        const rate = rateData.rates && rateData.rates[currency];
+        if (rate) {
+          const localAmount = Math.round(Number(budget) * rate);
+          localBudgetText = "（实时汇率 1 CNY ≈ " + rate + " " + currency +
+            "，约合 " + localAmount.toLocaleString() + " " + currency + "）";
+          currencyHint.textContent = "≈ " + localAmount.toLocaleString() + " " + currency +
+            "（1 CNY ≈ " + rate + " " + currency + "）";
+        } else {
+          currencyHint.textContent = "未查询到 " + currency + " 的汇率，将仅以人民币规划";
+        }
+      } catch (_) {
+        currencyHint.textContent = "汇率查询失败，将仅以人民币规划";
+      }
+    }
+
+    const systemPrompt =
+      "你是一位资深旅行规划师。输出必须严格遵循以下规范：\n" +
+      "1. 整体使用 Markdown 格式，必须包含以下固定板块（顺序不得更改）：\n" +
+      "   - 顶部 1 行 H1 标题 + 1 行斜体摘要\n" +
+      "   - ## 🗺️ 行程概览  → 用 Markdown 表格列出：天数 / 主题 / 核心景点\n" +
+      "   - ## 📅 每日安排  → 每天用 ### Day N，列出「上午 / 中午 / 下午 / 晚上」四个要点\n" +
+      "   - ## 🍜 美食推荐  → 单独板块，用 Markdown 表格列出：店名 / 推荐菜 / 位置；至少 3 条\n" +
+      "   - ## 🏨 住宿建议  → 2-4 条要点，按区域/天数给出\n" +
+      "   - ## 🚆 交通指南  → 要点形式，3-5 条；必须包含从「出发地→目的地」的往返大交通方案（高铁/飞机/自驾的大致票价与时长）\n" +
+      "   - ## 💰 预算分配  → 必须包含两部分：\n" +
+      "       a) 总览表格（类别 / 占比 / 金额），类别建议：住宿、餐饮、交通（含往返大交通）、景点门票、其他；总金额必须等于用户给定预算；\n" +
+      "       b) **📋 费用明细** —— 每一类下面列出明细项并做「加法拆解」，例如：\n" +
+      "          「餐饮（合计 500 元）: 早餐 ~25×5=125；正餐 ~80×4=320；下午茶/小吃 ~55；合计 500。」\n" +
+      "          「住宿（合计 1500 元）: Day1-2 经济型酒店 300×2=600；Day3 民宿 400；Day4 连锁酒店 500；合计 1500。」\n" +
+      "          「交通（合计 800 元）: 出发地→目的地高铁二等座 ~400×1=400；返程 ~400；市内地铁/公交 ~10×5=50；合计 850→按 800 预留并注明浮动。」\n" +
+      "       所有数字加总后必须与该分类金额、且所有分类加总后必须等于总预算，允许 ±2% 浮动。\n" +
+      "   - ## 💡 实用贴士  → 要点形式，不超过 5 条\n" +
+      "2. 语言精炼，避免长段落和重复描述，全文控制在 1000 字以内（费用明细部分不计入字数）。\n" +
+      "3. 严禁使用代码块（```）包裹整体输出；除表格外尽量用要点，少用整段文字。\n" +
+      "4. 根据用户「优先关注」项合理倾斜：选了「住宿环境」则推荐中高端住宿；选「美食体验」则餐饮占比上调；选「景点深度」则门票/讲解占比上调；以此类推。\n" +
+      "5. 结合用户给定的出行日期判断季节、淡旺季与节假日（如春节、黄金周、樱花季、雨季等），行程与价格估算必须符合该时段实际情况，旺季住宿/机票上浮要体现在预算中。\n" +
+      "6. 若为国际旅游：需包含护照/签证/入境注意事项；费用明细除人民币外，同时用目的地货币标注关键金额（如门票、餐饮单价），并给出换汇建议。\n" +
+      "7. 输出最末尾必须附加行程路线数据（用于生成地图，每行一个日程，格式严格如下）：\n" +
+      "   ROUTE_DATA: Day1|景点名1,景点名2,景点名3\n" +
+      "   ROUTE_DATA: Day2|景点名4,景点名5\n" +
+      "   地点必须使用真实存在的、可在地图上搜到的名称（如「宽窄巷子」而非「逛老街区」），每天 2-4 个，按游览顺序排列；此数据行不算入正文字数。";
+
+    const userPrompt =
+      "请按以下需求生成攻略：\n" +
+      "出发地：" + origin + "\n" +
+      "目的地：" + destination + "\n" +
+      "出行范围：" + (tripScope === "international" ? "国际旅游" : "国内旅游") + "\n" +
+      "出行日期：" + dateInfoText + "\n" +
+      "总预算：" + budget + " 元" + localBudgetText + "\n" +
+      "旅行偏好：" + prefText + "\n" +
+      "优先关注：" + priorityText + "\n\n" +
+      "严格按系统提示中的板块和顺序输出 Markdown；预算必须严格合计等于总预算。";
+
+    btn.disabled = true;
+    btn.textContent = "正在生成…";
+    resultContent.className = "result-content loading";
+    resultContent.textContent = "AI 正在思考中，请稍候…";
+
+    try {
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ];
+
+      // 本地：带密钥直连 DeepSeek；线上：走 /api/generate 函数代理（密钥在服务端）
+      let response, answer;
+      if (IS_LOCAL_FILE) {
+        response = await fetch(GENERATE_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + API_KEY
+          },
+          body: JSON.stringify({ model: "deepseek-chat", messages, stream: false })
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error("API 请求失败（" + response.status + "）：" + errText);
+        }
+        const data = await response.json();
+        answer = data.choices && data.choices[0] && data.choices[0].message
+          ? data.choices[0].message.content : "";
+      } else {
+        response = await fetch(GENERATE_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "deepseek-chat", messages })
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "API 请求失败（" + response.status + "）");
+        }
+        const data = await response.json();
+        answer = data.answer || "";
+      }
+
+      if (!answer) {
+        throw new Error("未收到有效回复。");
+      }
+
+      // 从 AI 回复中提取路线数据行（用于地图），正文不再显示这些行
+      const routeLines = [];
+      const bodyText = answer.split("\n").filter(line => {
+        if (/^\s*ROUTE_DATA\s*:/i.test(line)) {
+          routeLines.push(line);
+          return false;
+        }
+        return true;
+      }).join("\n");
+
+      // 渲染：顶部目的地图片(从 Wikipedia 搜索) + 下方 Markdown 内容
+      resultContent.className = "result-content";
+      resultContent.innerHTML = "";
+
+      const mdWrap = document.createElement("div");
+      mdWrap.className = "markdown";
+      mdWrap.innerHTML = marked.parse(bodyText);
+      resultContent.appendChild(mdWrap);
+
+      // 渲染行程路线地图（Leaflet + 地理编码）
+      if (routeLines.length) {
+        if (typeof L === "undefined") {
+          console.warn("[路线图] Leaflet 库未加载成功（CDN 不可达），跳过地图生成");
+        } else {
+          renderRouteMap(routeLines, destination);
+        }
+      } else {
+        console.warn("[路线图] AI 回复中未检测到 ROUTE_DATA 数据行");
+      }
+
+      // 从 Wikipedia 拉取目的地首图与简介（无需 API Key）
+      try {
+        const wikiUrl =
+          "https://zh.wikipedia.org/api/rest_v1/page/summary/" +
+          encodeURIComponent(destination);
+
+        const wikiResp = await fetch(wikiUrl);
+        if (wikiResp.ok) {
+          const wiki = await wikiResp.json();
+          if (wiki.type !== "disambiguation" && (wiki.thumbnail || wiki.extract)) {
+            const hero = document.createElement("div");
+            hero.className = "hero";
+
+            if (wiki.thumbnail && wiki.thumbnail.source) {
+              const img = document.createElement("img");
+              img.src = wiki.thumbnail.source;
+              img.alt = destination;
+              img.loading = "lazy";
+              img.onerror = () => img.remove();
+              hero.appendChild(img);
+            }
+
+            const meta = document.createElement("div");
+            meta.className = "hero-meta";
+            const h = document.createElement("h3");
+            h.textContent = "📍 " + destination;
+            meta.appendChild(h);
+            if (wiki.extract) {
+              const p = document.createElement("p");
+              p.textContent = wiki.extract;
+              meta.appendChild(p);
+            }
+            hero.appendChild(meta);
+
+            resultContent.insertBefore(hero, mdWrap);
+          }
+        }
+      } catch (_) {
+        // 图片加载失败不影响正文
+      }
+    } catch (err) {
+      resultContent.className = "result-content error";
+      resultContent.textContent = "生成失败：" + err.message +
+        "\n本地使用请检查 config.js 中的密钥；线上部署请检查 Netlify 环境变量。";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "生成攻略";
+    }
+  });
+</script>
+</body>
+</html>
